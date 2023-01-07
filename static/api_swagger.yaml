@@ -1,0 +1,2123 @@
+swagger: "2.0"
+
+info:
+  title: "Labelling API"
+  version: "1.0"
+
+securityDefinitions:
+
+  ApiSecurity:
+    type: apiKey
+    name: authorization
+    in: header
+
+
+
+security:
+  - ApiSecurity: [] 
+
+basePath: https://api.labelator.io
+
+paths:
+  /:
+    get:
+      description: 'Check API status and version'
+      operationId: api.index.hello_world
+      tags:
+          - home
+      responses:
+        '200': 
+          description: 'info'
+
+  /login/status:
+    get:
+      operationId: api.auth.get
+      description: 'Check user login status'
+      responses:
+        '200': 
+          description: 'Auth success'
+        '400': 
+          description: 'Bad request'
+        '403': 
+          description: 'Not allowed'
+      tags:
+        - login
+
+  /login/permissions:
+    get:
+      description: 'Get user permissions'
+      operationId: api.auth.get_permissions
+      responses:
+        '200': 
+          description: 'List of permissions'
+      tags:
+        - login
+
+  /login/getApiToken:
+    post:
+      description: 'Generate unique long lived API token that can be used to login as current user in machine 2 machine scenarios'
+      operationId: api.auth.create_api_token
+      responses:
+        '200': 
+          description: 'Object with api_token'
+        '400': 
+          description: 'Bad request'
+        '403': 
+          description: 'Not allowed'
+      tags:
+        - login
+
+
+  /login/getAuthUrlParams:
+    get:
+      description: 'Endpoint to request temporary valid parameter for URL that can not be authenticated via headers. Used for download of big files.'
+      operationId: api.auth.get_auth_url_params
+      parameters:
+        - name: project_id
+          description: id of project
+          in: query
+          type: string
+          required: true
+        - name: parameter
+          description: parameter of the next auth request
+          in: query
+          type: string
+          required: true
+      responses:
+        '200':
+          description: '{"token_hash":token_hash, "til":til)} < parameters to pass into next request as url params'
+      tags:
+        - login
+          
+  /login/get-invite-link-params:   
+    get:
+      operationId: api.auth.generate_invite_link_params
+      description: 'Get params for invite link generation'
+      parameters:
+        - name: invite_email
+          description: email of the invitee
+          in: query
+          type: string
+          required: true
+        - name: new_tennant
+          description: if new user should share tennant with the one who sent the invite
+          in: query
+          type: string
+          required: false
+        - name: user_profile
+          description: parameter of the next auth request
+          in: query
+          type: string
+          required: false
+      responses:
+        '200':
+          description: '{"invite_id":invite_id, "invite_check":invite_check} < parameters to pass into invite login link'
+        '403':
+          description: "User is not authorized to generate invites"
+      tags:
+        - login
+
+
+  /login/activate-invite:   
+    put:
+      operationId: api.auth.activate_invite_link
+      description: 'Activation user with invite link (User must be autheticated first'
+      parameters:
+        - name: invite_id
+          description: invite id from invitation link
+          in: query
+          type: string
+          required: true
+        - name: invite_check
+          description: checksum for invite
+          in: query
+          type: string
+          required: true
+        - name: email
+          in: query
+          type: string
+          required: false
+        - name: organization
+          in: query
+          type: string
+          required: false
+      responses:
+        '200':
+          description: 'success'
+        '400':
+          description: 'Invalid invite... response like this: {"message":"description"}'
+      tags:
+        - login
+
+ 
+  /login/google_auth:   
+    get:
+      operationId: api.google_oauth_flow.get_auth_url
+      description: 'Request for google authentication for scenarious where google token needs to be saved on server (BigQuery integration)'
+      parameters:
+        - name: final_redirect
+          description: where to next
+          in: query
+          type: string
+          required: true
+        - name: project_id
+          description: id of project to authenicate for
+          in: query
+          type: string
+          required: false
+        - name: reprocess
+          description: where to next
+          in: query
+          type: string
+          required: false
+      responses:
+        '200':
+          description: '{"authorization_url":authorization_url} object'
+      tags:
+        - login
+
+  /login/google_auth_callback:  
+    get:
+      description: 'Callback for google authentication for scenarious where google token needs to be saved on server (BigQuery integration)'
+      operationId: api.google_oauth_flow.oauth2callback
+      responses:
+        '200':
+          description: 'Gets project metadata'
+      tags:
+        - login
+
+  /projects/{project_id}:
+    get:
+      operationId: api.projects.get
+      description: 'Get full project data'
+      parameters:
+        - name: project_id
+          description: id of project
+          in: path
+          type: string
+          required: true
+      responses:
+        '200':
+          description: 'Gets project metadata'
+          schema:
+            $ref: '#/definitions/Project'
+      tags:
+          - projects
+    delete:
+      operationId: api.projects.delete
+      description: 'Delete project and its data permanently'
+      parameters:
+        - name: project_id
+          description: id of project
+          in: path
+          type: string
+          required: true
+      responses:
+        '200':
+          description: 'Project was deleted'
+          schema:
+            $ref: '#/definitions/Project'
+      tags:
+          - projects
+
+  /projects/search:
+    get:
+      operationId: api.projects.search
+      description: 'Search for project'
+      parameters:
+        - name: name
+          description: name of project or it's part
+          in: query
+          type: string
+          required: false
+        - name: exact_match
+          description: wheter to request only exact match
+          in: query
+          type: boolean
+          required: false
+      responses:
+        '200':
+          description: 'Searchs projects by name'
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/ProjectShortInfo'
+      tags:
+          - projects
+
+  /projects:
+    post:
+      operationId: api.projects.post
+      description: 'Upsert project'
+      parameters:
+        - name: project_data
+          description: project data
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/Project'
+        - name: download_and_process_data
+          description: if project data should be downloaded from source and processed 
+          in: query
+          type: boolean
+          required: false
+        - name: merge_with_new_data
+          in: query
+          type: boolean
+          required: false
+      tags:
+          - projects
+      responses:
+        '200':
+          description: 'saved project'
+          schema:
+            $ref: '#/definitions/Project'
+  
+  /projects/{project_id}/status:
+    get:
+      description: 'Get Project info and statistics'
+      operationId: api.projects.get_status
+      parameters:
+        - name: project_id
+          description: id of project
+          in: path
+          type: string
+          required: true
+      responses:
+        '200':
+          description: 'Gets project metadata'
+          schema:
+            type: object
+            properties:
+              id: 
+                type: string
+              name:  
+                type: string 
+              task_type:  
+                type: string
+              stats:
+                type: object
+      tags:
+          - projects
+
+  /projects/{project_id}/info:
+    get:
+      description: 'Get Project info, statistics, and label settings'
+      operationId: api.projects.get_info
+      parameters:
+        - name: project_id
+          description: id of project
+          in: path
+          type: string
+          required: true
+      tags:
+          - projects
+      responses:
+        '200':
+          description: 'Gets project metadata'
+          schema:
+            type: object
+            properties:
+              id: 
+                type: string
+              name:  
+                type: string 
+              task_type:  
+                type: string
+              all-labels: 
+                type: array 
+                items: 
+                  type: string        
+              label_settings:
+                type: object
+
+    
+
+
+  /projects/{project_id}/apply-labels:
+    put:
+      operationId: api.projects.apply_labels_from_project
+      description: 'Copy labels from one project to another (match by key)'
+      parameters:
+        - name: project_id
+          description: id of project
+          in: path
+          type: string
+          required: true
+        - name: source_project_id
+          description: id of project
+          in: query
+          type: string
+          required: true
+        - name: missing_label_behaviour
+          description: one of none | skip | add_to_project
+          in: query
+          type: string
+          required: true
+      tags:
+          - projects
+      responses:
+        '200':
+          description: 'success'
+           
+  /projects/{project_id}/files:
+    post:
+      operationId: api.projects.files_upload
+      description: 'Upload files to project'
+      parameters:
+        - name: project_id
+          description: id of project
+          in: path
+          type: string
+          required: true
+        - name: download_and_process_data
+          description: if project data should be downloaded from source and processed 
+          in: query
+          type: boolean
+      tags:
+          - projects
+      responses:
+        '200':
+          description: 'Files uploaded'
+          
+  /projects/{project_id}/files/{file_name}:
+    get:
+      description: export project data
+      operationId: api.projects.download_file
+      parameters:
+        - name: project_id
+          description: id of project
+          in: path
+          type: string
+          required: true
+        - name: file_name
+          description: id of project
+          in: path
+          type: string
+          required: true
+        - name: token_hash
+          description: token_hash
+          in: query
+          type: string
+          required: true
+        - name: til
+          description: til
+          in: query
+          type: string
+          required: true
+      tags:
+          - projects
+      responses:
+        200:
+          description: OK
+          schema:
+            type: file
+
+  /projects/{project_id}/export:
+    post:
+      description: export project data
+      operationId: api.projects.schedule_project_export
+      parameters:
+        - name: project_id
+          description: id of project
+          in: path
+          type: string
+          required: true
+      tags:
+          - projects
+      responses:
+        200:
+          description: OK - Scheduled
+
+  /projects/import-upload:
+    put:
+      description: import project data
+      operationId: api.projects.upload_files
+      parameters:
+        - name: gcp_upload_url
+          description: id of project
+          in: query
+          type: string
+          required: false
+      tags:
+          - projects
+      responses:
+        200:
+          description: OK  
+
+
+  /projects/import:
+    post:
+      description: import project data
+      operationId: api.projects.project_import
+      parameters:
+        - name: into_project_id
+          description: id of project
+          in: query
+          type: string
+          required: false
+        - name: file_url
+          description: url of the file to process
+          in: query
+          type: string
+          required: false
+      tags:
+          - projects
+      responses:
+        200:
+          description: OK
+    get:
+      description: get import project data upload url
+      operationId: api.projects.get_project_import_upload_url
+      tags:
+          - projects
+      responses:
+        200:
+          description: OK
+  /projects/{project_id}/labels/:
+    put:
+      description: 'Create new label definition in project'
+      operationId: api.projects.add_new_label
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: label_body
+          in: body
+          schema:
+            type: object
+            properties:
+              label:
+                type: string 
+          required: true
+      tags:
+          - projects
+      responses:
+        '200':
+          description: 'Label added'
+  
+  /projects/{project_id}/labeling-preferences/:
+    patch:
+      description: 'Update general lebeling settings for project like similarity threshold'
+      operationId: api.projects.patch_preferences
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: body
+          description: 'object like {"similarity_threshold":0.8}'
+          in: body
+          schema:
+            type: object
+          
+          required: true   
+      tags:
+          - projects
+      responses:
+        '200':
+          description: 'Preferences updated'
+
+
+  /projects/{project_id}/label-keywords/:
+    put:
+      operationId: api.projects.add_keyword_to_label
+      description: 'Add keyword to projekt label'
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: body
+          in: body
+          schema:
+            type: object
+          required: true
+      tags:
+          - projects
+      responses:
+        '200':
+          description: 'Label keyword added >> returns full project info'
+
+  /projects/{project_id}/models:
+    get:
+      description: 'Get project models'
+      operationId: api.models.get_custom_models
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+      tags:
+          - models
+      responses:
+        '200':
+          description: 'List of models'
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/ModelInfo'
+
+  /models/info/{project_name}/{model_name}:
+    get:
+      operationId: api.models.model_info
+      parameters:
+        - name: project_name
+          in: path
+          type: string
+          required: true
+        - name: model_name
+          in: path
+          type: string
+          required: true
+      tags:
+          - models
+      responses:
+        '200':
+          description: 'List of models'
+          schema:
+            $ref: '#/definitions/ModelInfo'
+            
+
+  /projects/{project_id}/models/{model_id}/download:
+    get:
+      description: export project data
+      operationId: api.models.download_model
+      parameters:
+        - name: project_id
+          description: id of project
+          in: path
+          type: string
+          required: true
+        - name: model_id
+          description: model_name or id
+          in: path
+          type: string
+          required: true
+        - name: token_hash
+          description: token_hash
+          in: query
+          type: string
+          required: true
+        - name: til
+          description: til
+          in: query
+          type: string
+          required: true
+        - name: file_name
+          description: name
+          in: query
+          type: string
+          required: false
+      tags:
+          - models
+      responses:
+        200:
+          description: OK
+          schema:
+            type: file
+
+
+  /projects/{project_id}/models/download-urls:
+    get:
+      description: export model - retrieva temp download URL
+      operationId: api.models.get_download_model_urls
+      parameters:
+        - name: project_id
+          description: id of project
+          in: path
+          type: string
+          required: true
+        - name: model_name_or_id
+          description: id or naame of model
+          in: query
+          type: string
+          required: true
+      tags:
+          - models
+      responses:
+        200:
+          description: OK
+          schema:
+            type: array
+            items:
+              type: string
+
+  /projects/{project_id}/models/upload/get_url:
+    get:
+      description: get upload url
+      operationId: api.models.get_model_import_upload_url
+      parameters:
+        - name: project_id
+          description: id of project
+          in: path
+          type: string
+          required: true
+        - name: task_type
+          description: model task type
+          in: query
+          type: string
+          required: true
+        - name: model_name
+          description: model name (without project name)
+          in: query
+          type: string
+          required: true
+      tags:
+          - models
+      responses:
+        '200':
+          description: 'List of models'
+          schema:
+            $ref: '#/definitions/ModelInfo'
+
+  /projects/{project_id}/models/upload/finalize:
+    post:
+      description: get upload url
+      operationId: api.models.create_model_from_upload
+      parameters:
+        - name: project_id
+          description: id of project
+          in: path
+          type: string
+          required: true
+        - name: temp_file_path
+          description: path of files in GPC, retrieved from projects/{project_id}/models/upload/get_url endpoint
+          in: query
+          type: string
+          required: true
+        - name: task_type
+          description: model task type
+          in: query
+          type: string
+          required: true
+        - name: model_name
+          description: model name (without project name)
+          in: query
+          type: string
+          required: true
+      tags:
+          - models
+      responses:
+        200:
+          description: OK
+          schema:
+            type: object
+
+  /projects/{project_id}/models/upload:
+    put:
+      description: upload project
+      operationId: api.models.upload_files
+      tags:
+          - models
+      parameters:
+        - name: project_id
+          description: id of project
+          in: path
+          type: string
+          required: true
+        - name: gcp_upload_url
+          description: id of project
+          in: query
+          type: string
+          required: false
+      responses:
+        200:
+          description: OK  
+  
+  /projects/{project_id}/models/prediction_info:
+    get:
+      description: import project data
+      operationId: api.projects.get_predictions_info
+      tags:
+          - models
+      parameters:
+        - name: project_id
+          description: id of project
+          in: path
+          type: string
+          required: true
+      responses:
+        200:
+          description: OK  
+
+  /projects/{project_id}/models/train:
+    put:
+      description: 'Train model'
+      operationId: api.models.train_new
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: parameters
+          description: training parameters
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/TrainParams'
+      tags:
+          - models
+      responses:
+        '200':
+          description: Training was planned to queue
+      
+  /projects/{project_id}/models/train/options:
+    get:
+      description: 'Get default training options'
+      operationId: api.models.get_train_options
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: task_type
+          in: query
+          type: string
+          required: false
+      tags:
+          - models
+      responses:
+        '200':
+          description: Training was planned to queue
+          schema:
+            type: object
+
+  /projects/{project_id}/models/{model_id}:
+    get:
+      description: 'get model information'
+      operationId: api.models.get
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: model_id
+          in: path
+          type: string
+          required: true
+      tags:
+          - models
+      responses:
+        '200':
+          description: 'Model details'
+    delete:
+      description: 'delete model'
+      operationId: api.models.delete
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: model_id
+          in: path
+          type: string
+          required: true
+      tags:
+          - models
+      responses:
+        '200':
+          description: 'Model details'
+
+  /projects/{project_id}/models/{model_id}/apply-predict:
+    put:
+      description: 'apply prediction of a model on project data'
+      operationId: api.models.apply_predict
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: model_id
+          in: path
+          type: string
+          required: true
+      tags:
+          - models
+      responses:
+        '200':
+          description: 'Schedulled job'
+  
+  /projects/{project_id}/models/{model_id}/compare-predictions:
+    put:
+      description: 'apply alternative predition of a model on project data and compare it'
+      operationId: api.models.compare_predictions
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: model_id
+          in: path
+          type: string
+          required: true
+      tags:
+          - models
+      responses:
+        '200':
+          description: 'Schedulled job'
+          
+  /projects/{project_id}/models/{model_id}/apply-embeddings:
+    put:
+      description: 're-create document embeddings and reindex data with them'
+      operationId: api.models.apply_embeddings
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: model_id
+          in: path
+          type: string
+          required: true
+      tags:
+          - models
+      responses:
+        '200':
+          description: 'Schedulled job'
+
+  /projects/tasks:
+    get:
+      description: 'get active and past tasks (shown in sidebar) for project or globaly for tennant'
+      operationId: api.tasks.get
+      parameters:
+        - name: project_id
+          description: id of the projekct
+          in: query
+          type: string
+          required: false
+      tags:
+          - tasks
+      responses:
+        '200':
+          description: 'Status of current project and user tasks'
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/TaskStatus'
+
+  /projects/tasks/{task_id}:
+    get:
+      description: 'get status of a task'
+      operationId: api.tasks.get_task_status
+      parameters:
+        - name: task_id
+          description: task_id
+          in: path
+          type: string
+          required: true
+      tags:
+          - tasks
+      responses:
+        '200':
+          description: 'TaskStatus'
+          schema:
+            $ref: '#/definitions/TaskStatus'
+    delete:
+      description: 'hide task info'
+      operationId: api.tasks.hide
+      parameters:
+        - name: task_id
+          description: task_id to hide
+          in: path
+          type: string
+          required: true
+      tags:
+          - tasks
+      responses:
+        '200':
+          description: 'Remove task from list'
+          
+  /projects/tasks/{task_id}/result-data:
+    get:
+      operationId: api.tasks.get_results_data
+      parameters:
+        - name: task_id
+          description: task_id
+          in: path
+          type: string
+          required: true
+      tags:
+          - tasks
+      responses:
+        '200':
+          description: 'any result data from task'
+          
+
+  /projects/{project_id}/topic/{topic_id}:
+    get:
+      operationId: api.topics.get
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: topic_id
+          in: path
+          type: number
+          required: true
+      tags:
+          - topics
+      responses:
+        '200':
+          description: 'Topic returned'
+          schema:
+            $ref: '#/definitions/Topic'
+    patch:
+      operationId: api.topics.patch
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: topic_id
+          in: path
+          type: number
+          required: true
+        - name: body
+          in: body
+          schema:
+            type: object
+          required: true
+      tags:
+          - topics
+      responses:
+        '204':
+          description: 'Topic updated'
+          schema:
+            $ref: '#/definitions/Topic'
+
+  /projects/{project_id}/topic/regenerate:
+    put:
+      operationId: api.topics.regenerate
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+      tags:
+          - topics
+      responses:
+        '200':
+          description: 'Status of current project and user tasks'
+
+  /projects/{project_id}/topic/{topic_id}/stats:
+    get:
+      operationId: api.topics.stats
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: topic_id
+          in: path
+          type: number
+          required: true
+      tags:
+          - topics
+      responses:
+        '200':
+          description: 'Topic statistics'
+          schema:
+            type: object
+  /projects/{project_id}/topic/search:
+    get:
+      operationId: api.topics.search
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: keyword
+          in: query
+          type: string
+        - name: skip
+          in: query
+          description: number of documents to skip in result before fetching
+          type: integer
+          default: 0
+          required: false
+        - name: take
+          in: query
+          description: max number of documents to load
+          type: integer
+          default: 50
+          required: false
+      tags:
+          - topics
+      responses:
+        '200':
+          description: 'Status of current project and user tasks'
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Topic'     
+
+  /projects/{project_id}/doc/:
+    post:
+      operationId: api.docs.add_documents
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: documents
+          in: body
+          required: true
+          schema:
+            type: array
+            items:
+              type: object
+        - name: upsert
+          in: query
+          description: wheter if duplicate key is already in database, it should be overriden... default false
+          type: boolean
+          required: false
+      tags:
+          - documents
+      responses:
+        '200':
+          description: 'Import task accepted. If not scheduled, returns array of ids'
+
+
+  /projects/{project_id}/doc/{doc_id}:
+    get:
+      operationId: api.docs.get
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: doc_id
+          in: path
+          type: string
+          required: true
+      tags:
+          - documents
+      responses:
+        '200':
+          description: 'Status of current project and user tasks'
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/TextDocument'    
+    delete:
+      operationId: api.docs.delete
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: doc_id
+          in: path
+          type: string
+          required: true
+      tags:
+          - documents
+      responses:
+        '200':
+          description: 'Deleted'
+         
+  /projects/{project_id}/doc/excluded:
+    put:
+      operationId: api.docs.exclude
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: doc_ids
+          in: body
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+      tags:
+          - documents
+      responses:
+        '200':
+          description: 'Success'
+
+
+  /projects/{project_id}/doc/export-vectors:
+    put:
+      operationId: api.docs.export_vectors
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: doc_ids
+          in: body
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+      tags:
+          - documents
+      responses:
+        '200':
+          description: '[{"id":"uuid", "vector":[ numbers, ... ]}]'
+
+  /projects/{project_id}/doc/count:
+    get:
+      operationId: api.docs.get_count
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: topic_id
+          in: query
+          description: filter for find only the docs for topic
+          type: string
+          required: false
+        - name: keyword
+          in: query
+          description: keyword to find in all text documents
+          type: string
+          required: false
+        - name: by_label
+          in: query
+          description: filtering by label ... special values - 'null' / '!null' for filtering with any or none label
+          type: string
+          required: false
+        - name: key
+          in: query
+          description: key of document
+          type: string
+          required: false
+        - name: false_positives
+          in: query
+          description: label to search for in falsly positive predicted labels on documents
+          type: string
+          required: false
+        - name: false_negatives
+          in: query
+          description: label to search for in falsly negagtive predicted labels on documents
+          type: string
+          required: false
+        - name: predicted_label
+          in: query
+          description: label that was predicted on document
+          type: string
+          required: false
+        - name: prediction_certainty
+          in: query
+          description: preduction certainty of predicted_label (if number is negative, it's certainty of not predition that label) 
+          type: string
+          required: false
+      tags:
+          - documents
+      responses:
+        '200':
+          description: 'the count'
+
+  /projects/{project_id}/doc/{doc_id}/similar-count:
+    get:
+      operationId: api.docs.get_similar_count
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: doc_id
+          in: path
+          type: string
+          required: true
+        - name: by_label
+          in: query
+          description: filter for particular label only, or null/!null for filtering out labeled, not labeled
+          type: string
+          required: false
+        - name: limit
+          in: query
+          description: stop condition, max count to be returned
+          type: number
+          required: false
+        - name: min_score
+          in: query
+          description: minimum similarity score to limit to result for simularity based request. Must be number between 0 and 1.
+          type: number
+          required: false
+      tags:
+          - documents
+      responses:
+        '200':
+          description: 'Count of similar'
+
+  /projects/{project_id}/doc/{doc_id}/analyze:
+    get:
+      operationId: api.docs.analyze_doc
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: doc_id
+          in: path
+          type: string
+          required: true
+        - name: select
+          in: query
+          type: array
+          collectionFormat: csv
+          items:
+            type: string
+          required: true
+      tags:
+          - documents
+      responses:
+        '200':
+          description: 'Object with data requested'
+
+  /projects/{project_id}/doc/{doc_id}/prediction_scores:
+    get:
+      operationId: api.docs.get_predicted_labels_scores
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: doc_id
+          in: path
+          type: string
+          required: true
+      tags:
+          - documents
+      responses:
+        '200':
+          description: 'Prediction scores  in form of {"label":score} object'
+
+  # /projects/{project_id}/doc/prediction_scores:
+  #   get:
+  #     operationId: api.docs.get_predicted_labels_scores_bulk
+  #     parameters:
+  #       - name: project_id
+  #         in: path
+  #         type: string
+  #         required: true
+  #       - name: ids
+  #         in: query
+  #         type: array
+  #         collectionFormat: csv
+  #         items:
+  #           type: string
+  #         required: true
+  #     responses:
+  #       '200':
+  #         description: 'Prediction scores  in form of {"label":score} object'
+        
+
+
+  /projects/{project_id}/doc/{doc_id}/predict_likely_labels:
+    get:
+      operationId: api.docs.predict_likely_labels
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: doc_id
+          in: path
+          type: string
+          required: true
+      tags:
+          - documents
+      responses:
+        '200':
+          description: 'list of labels as string'
+
+  /projects/{project_id}/doc/{doc_id}/similar:
+    put:
+      operationId: api.docs.label_similarity_pair
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: doc_id
+          in: path
+          type: string
+          required: true
+        - name: sim_doc_ids
+          in: body
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+        - name: label
+          in: query
+          type: boolean
+          required: true
+      tags:
+          - documents
+      responses:
+        '200':
+          description: 'Success'
+
+  /projects/{project_id}/doc/all:
+    delete:
+      operationId: api.docs.delete_all
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+      tags:
+          - documents
+      responses:
+        '200':
+          description: 'deletion successful'
+
+  /projects/{project_id}/doc/search:
+    get:
+      operationId: api.docs.search
+      parameters:
+        - name: project_id
+          type: string
+          in: path
+          required: true
+        - name: topic_id
+          in: query
+          description: filter for find only the docs for topic
+          type: string
+          required: false
+        - name: keyword
+          in: query
+          description: keyword to find in all text documents
+          type: string
+          required: false
+        - name: similar_to_doc
+          in: query
+          description: id of document to search similar docs to
+          type: string
+          required: false
+        - name: similar_to_phrase
+          in: query
+          description: text or phrase to search similar document to
+          type: string
+          required: false
+        - name: min_score
+          in: query
+          description: minimum similarity score to limit to result for simularity based request. Must be number between 0 and 1.
+          type: number
+          required: false
+        - name: by_label
+          in: query
+          description: filtering by label ... special values - 'null' / '!null' for filtering with any or none label
+          type: string
+          required: false
+
+        - name: key
+          in: query
+          description: key of document
+          type: string
+          required: false
+        - name: false_positives
+          in: query
+          description: label to search for in falsly positive predicted labels on documents
+          type: string
+          required: false
+        - name: false_negatives
+          in: query
+          description: label to search for in falsly negagtive predicted labels on documents
+          type: string
+          required: false
+        - name: predicted_label
+          in: query
+          description: label that was predicted on document
+          type: string
+          required: false
+        - name: prediction_certainty
+          in: query
+          description: preduction certainty of predicted_label (if number is negative, it's certainty of not predition that label) 
+          type: string
+          required: false
+        - name: prediction_comparsion
+          in: query
+          description: prediction difference ... with + or - prefix whether new prediciton has extra label
+          type: string
+          required: false
+        - name: order_by
+          in: query
+          description: set the order and order field... for descending fields needs to start with "-"ň
+          type: string
+          required: false
+        - name: after
+          in: query
+          description: get records after provided order number. Order number is a unumber as the records are stored in database
+          type: number
+          required: false
+        - name: before
+          in: query
+          description: get records before provided order number. Order number is a unumber as the records are stored in database
+          type: number
+          required: false
+        - name: skip
+          in: query
+          description: number of documents to skip in result before fetching
+          type: integer
+          default: 0
+          required: false
+        - name: take
+          in: query
+          description: max number of documents to load
+          type: integer
+          default: 50
+          required: false
+      tags:
+          - documents
+      responses:
+        '200':
+          description: 'Status of current project and user tasks'
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/TextDocument'        
+
+  /projects/{project_id}/doc/query:
+    post:
+      operationId: api.docs.query
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: query
+          in: body
+          schema:
+            type: object
+          required: true
+        - name: order_by
+          in: query
+          required: false
+          type: string
+        - name: take
+          in: query
+          required: false
+          type: integer
+        - name: skip
+          in: query
+          required: false
+          default: 50
+          type: integer
+      tags:
+          - documents
+      responses:
+        '200':
+          description: 'Success'
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/TextDocument'    
+    patch:
+      operationId: api.docs.delete_query
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: query
+          in: body
+          schema:
+            type: object
+          required: true
+        - name: wait_for_completion
+          in: query
+          type: boolean
+          required: false
+      tags:
+          - documents
+      responses:
+        '200':
+          description: 'Success'
+         
+
+              
+  /projects/{project_id}/doc/closest:
+    post:
+      operationId: api.docs.get_closest_neigbours
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: body
+          in: body
+          schema:
+            type: object
+          required: true
+      tags:
+          - documents
+      responses:
+        '200':
+          description: 'Success'
+
+  /projects/{project_id}/doc/export:
+    post:
+      operationId: api.docs.export_to_file
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: format
+          in: query
+          type: string
+          required: true
+        - name: filters
+          in: body
+          required: false
+          schema:
+            type: object
+      tags:
+          - documents
+      responses:
+        '200':
+          description: 'Success'
+
+  /projects/{project_id}/doc/labels:
+    patch:
+      operationId: api.docs.set_labels
+      parameters:
+        - name: project_id
+          in: path
+          type: string
+          required: true
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            properties:
+              doc_ids: 
+                type: array
+                items: 
+                  type: string   
+              labels: 
+                type: array
+                items: 
+                  type: string  
+      tags:
+          - documents
+
+      responses:
+        '200':
+          description: 'save successful'
+
+
+  /serving/nodes:
+    get:
+      operationId: api.serving.get_nodes
+      tags:
+          - serving
+      responses:
+        '200':
+          description: 'list fo node infos'
+          schema:
+            type: array 
+            items:
+              type: object
+    post:
+      operationId: api.serving.create_node
+      parameters:
+        - name: body
+          in: body
+          schema:
+            $ref: '#/definitions/NodeInfo'
+               
+          required: true
+      tags:
+          - serving
+      responses:
+        '200':
+          description: 'creation successful'
+  
+
+  /serving/nodes/{node_name}:
+    get:
+      operationId: api.serving.get_node
+      parameters:
+        - name: node_name
+          in: path
+          type: string
+          required: true  
+      tags:
+          - serving
+      responses:
+        '200':
+          description: 'node info'
+          schema:
+            $ref: '#/definitions/NodeInfo'
+    patch:
+      operationId: api.serving.patch_node_info
+      parameters:
+        - name: node_name
+          in: path
+          type: string
+          required: true  
+        - name: body
+          in: body
+          schema:
+            $ref: '#/definitions/NodeInfo'
+      tags:
+          - serving
+      responses:
+        '200':
+          description: 'patched node info'
+        
+    delete:
+      operationId: api.serving.delete_node
+      parameters:
+        - name: node_name
+          in: path
+          type: string
+          required: true  
+      tags:
+          - serving
+      responses:
+        '200':
+          description: 'node was deleted'
+
+  /serving/nodes/{node_name}/start:
+    post:
+      operationId: api.serving.start
+      parameters:
+        - name: node_name
+          in: path
+          required: true
+          type: string
+      tags:
+          - serving
+      responses:
+        '200':
+          description: 'operation started'
+
+  /serving/nodes/{node_name}/stop:
+    post:
+      operationId: api.serving.stop
+      parameters:
+        - name: node_name
+          in: path
+          required: true
+          type: string
+      tags:
+          - serving
+      responses:
+        '200':
+          description: 'operation started'
+     
+  /serving/nodes-settings/{node_name}:
+    get:
+      operationId: api.serving.get_settings
+      parameters:
+        - name: node_name
+          in: path
+          type: string
+          required: true  
+      tags:
+          - serving
+      responses:
+        '200':
+          description: 'list fo node infos'
+          schema:
+            $ref: '#/definitions/NodeSettings'
+    put:
+      operationId: api.serving.update_settings
+      parameters:
+        - name: node_name
+          in: path
+          type: string
+          required: true  
+        - name: body
+          required: true  
+          in: body
+          schema:
+            $ref: '#/definitions/NodeSettings'
+      tags:
+          - serving
+      responses:
+        '200':
+          description: 'saved'
+  
+  /serving/nodes-settings/{node_name}/analyze:
+    post:
+      operationId: api.serving.analyze_settings
+      parameters:
+        - name: node_name
+          in: path
+          type: string
+          required: true  
+        - name: settings
+          in: body
+          schema:
+            type: object
+          required: false  
+      tags:
+          - serving
+      responses:
+        '200':
+          description: 'Analysis results'
+
+  /serving/nodes-settings/{node_name}/ping:
+    post:
+      operationId: api.serving.ping
+      parameters:
+        - name: node_name
+          in: path
+          type: string
+          required: true  
+        - name: body
+          in: body
+          schema:
+            type: object
+          required: false  
+      tags:
+          - serving
+      responses:
+        '200':
+          description: 'None or configuration object if not up to date'
+
+
+
+  /integration/modules:
+    get:
+      operationId: api.integrations.get_modules
+      parameters:
+        - name: project_id
+          description: if set, only modules for that project will be selected, else only global modules
+          in: query
+          type: string
+          required: true
+      tags:
+          - integration modules
+      responses:
+        '200':
+          description: 'list of availible modules'
+          
+  /integration/modules/{connector}:
+    get:
+      operationId: api.integrations.get_module
+      parameters:
+        - name: connector
+          description: if set, only modules for that project will be selected, else only global modules
+          in: path
+          type: string
+          required: true
+      tags:
+          - integration modules
+      responses:
+        '200':
+          description: 'module info'
+
+  /integration/{connector}/settings:
+    post:
+      operationId: api.integrations.save_settings
+      parameters:
+        - name: settings
+          description: any settings to be saved to connector
+          in: body
+          required: true
+          schema:
+            type: object
+        - name: connector
+          description: if project data should be downloaded from source and processed 
+          in: path
+          type: string
+          required: true
+        - name: project_id
+          description: id of project for which the settings are valid
+          in: query
+          type: string
+          required: false
+      tags:
+          - integration modules
+      responses:
+        '200':
+          description: 'settings saved'
+    get:
+      operationId: api.integrations.get_settings
+      parameters:
+        - name: connector
+          description: if project data should be downloaded from source and processed 
+          in: path
+          type: string
+          required: true
+        - name: project_id
+          description: id of project for which the settings are valid
+          in: query
+          type: string
+          required: false
+      tags:
+          - integration modules
+      responses:
+        '200':
+          description: 'saved settings'
+          
+  /integration/{connector}/metadata/{key}:
+    put:
+      operationId: api.integrations.put_metadata
+      parameters:
+        - name: metadata_value
+          description: any settings to be saved to connector
+          in: body
+          required: true
+          schema:
+            type: object
+        - name: connector
+          description: if project data should be downloaded from source and processed 
+          in: path
+          type: string
+          required: true
+        - name: key
+          description: metadata key
+          in: path
+          type: string
+          required: true
+      tags:
+          - integration modules
+      responses:
+        '200':
+          description: 'metadata saved'
+    get:
+      operationId: api.integrations.get_metadata
+      parameters:
+        - name: connector
+          description: if project data should be downloaded from source and processed 
+          in: path
+          type: string
+          required: true
+        - name: key
+          description: metadata key
+          in: path
+          type: string
+          required: true
+      tags:
+          - integration modules
+      responses:
+        '200':
+          description: 'saved metadata'
+
+
+
+  /users:
+      get:
+        operationId: api.users.get_tennant_users
+        tags:
+          - users
+        responses:
+          '200':
+            description: 'list of users'
+  /users/{user_id}:
+      patch:
+        operationId: api.users.update_user
+        parameters:
+          - name: user_id
+            in: path
+            type: string
+            required: true
+          - name: body
+            description: data to update
+            in: body
+            required: true
+            schema:
+              type: object
+        tags:
+          - users
+        responses:
+          '200':
+            description: 'saved'
+
+  /users/{user_id}/sessions:
+      get:
+        operationId: api.users.get_sessions
+        parameters:
+          - name: user_id
+            in: path
+            type: string
+            required: true
+          - name: from_date
+            in: query
+            type: string
+            required: true
+          - name: to_date
+            in: query
+            type: string
+            required: false
+        tags:
+          - users
+        responses:
+          '200':
+            description: 'date'
+
+  /users/{user_id}/sessions/latest:
+      get:
+        operationId: api.users.get_latest_session
+        parameters:
+          - name: user_id
+            in: path
+            type: string
+            required: true
+        tags:
+          - users
+        responses:
+          '200':
+            description: 'date'
+
+  /tennant:
+    get:
+      operationId: api.users.get_tennant_info
+      tags:
+          - users
+      responses:
+        '200':
+          description: 'tennat info'
+
+
+
+
+
+
+
+
+
+
+
+
+definitions:
+  Project:
+    type: object
+    properties:
+      id: 
+        type: string
+      name:  
+        type: string     
+  
+  
+  ProjectStatistics:
+    type: object
+    properties:
+      total_count:
+        type: number 
+      labeled_count:
+        type: number
+      by_label_count:
+        type: object
+
+  ProjectShortInfo:
+    type: object
+    properties:
+      id:  
+        type: string 
+      name:  
+        type: string 
+
+  TaskStatus:
+    type: object
+    properties:
+      task_id:
+        type: string 
+      task_name:
+        type: string 
+      progress_current:
+        type: number 
+      progress_total:
+        type: string 
+      start_date:
+         type: string 
+      duration_sec:
+         type: number 
+
+  Topic:
+    type: object
+    properties:
+      topic_id:
+        type: string
+      topic_name:
+        type: string
+      topic_keywords:
+        type: array
+        items:
+          type: string
+      representative_samples:
+        type: array
+        items:
+          $ref: '#/definitions/TextDocument'
+
+  TextDocument:
+    type: object
+    properties:
+      id:
+        type: string
+      text:
+        type: string
+      topic_id:
+        type: string
+      topic_propability:
+        type: number
+      labels:
+        type: array
+        items: 
+          type: string
+      predicted_labels:
+        type: array
+        items: 
+          type: string
+
+  ModelInfo:
+    type: object
+    properties:
+      id:
+        type: string
+      project_id:
+        type: string
+      model_name:
+        type: string
+      task_type:
+        type: string
+      created_at:
+        type: string
+      metrics:
+        type: object
+
+  TrainParams:
+    type: object
+    properties:
+      max_num_epochs:
+        type: number
+      from_model:
+        type: string
+
+  NodeInfo:
+      type: object
+      properties:
+        node_name:  
+          type: string 
+        node_type:  
+          type: string 
+        deployment_type:  
+          type: string 
+        status:  
+          type: string 
+
+  
+  NodeSettings:
+      type: object
+      properties:
+        default_model:  
+          type: string 
+        models:  
+          type: array
+          items:
+            type: object
+
+
+
+
+
+      
